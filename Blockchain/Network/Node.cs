@@ -29,10 +29,10 @@ public class Node
         return _peers.Select(p => p.Url).ToList();
     }
     
-    public void Start(string url)
+    public void Start(string url, string? listenPrefix = null)
     {
         Url = url;
-        var httpUrl = url.Replace("ws://", "http://");
+        var httpUrl = (listenPrefix ?? url).Replace("ws://", "http://");
         if (!httpUrl.EndsWith("/")) 
             httpUrl += "/";
 
@@ -153,6 +153,11 @@ public class Node
                 else
                 {
                     Console.WriteLine($"Block #{block.Index} is rejected for invalid");
+                    await Send(socket, new Message
+                    {
+                        Type = MessageType.GetChain,
+                        Data = ""
+                    });
                 }
                 break;
 
@@ -288,7 +293,7 @@ public class Node
         if (hash != block.Hash)
             return false;
 
-        if (!block.Hash.StartsWith("000000"))
+        if (!block.Hash.StartsWith("00000000"))
             return false;
 
         if (block.PreviousHash != Blockchain.Last().Hash)
@@ -353,7 +358,7 @@ public class Node
             if (BlockHasher.Calculate(current) != current.Hash)
                 return false;
 
-            if (!current.Hash.StartsWith("000000"))
+            if (!current.Hash.StartsWith("00000000"))
                 return false;
 
             var hasCoinbase = false;

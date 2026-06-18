@@ -25,17 +25,25 @@ Print(@"
 ", ConsoleColor.Magenta);
 Print("==================================================", ConsoleColor.DarkMagenta);
 var port = args.Length > 0 ? args[0] : "5001";
-var myUrl = $"ws://localhost:{port}";
+// По умолчанию подключаемся к твоему домену
+var bootstrapHost = args.Length > 1 ? args[1] : "sharknet.g0shark.ru"; 
+var myHost = args.Length > 2 ? args[2] : "localhost";
+
+var myUrl = $"ws://{myHost}:{port}";
+var bootstrapApiUrl = $"http://{bootstrapHost}:7000";
 
 Print($"Initializing node on {myUrl}...", ConsoleColor.Cyan);
+Print($"Connecting to Bootstrap at {bootstrapApiUrl}...", ConsoleColor.Cyan);
 
 var chain = new Blockchain.Core.Blockchain();
 var mempool = new Mempool();
 var node = new Node(chain, mempool);
 chain.InitializePersistence(port);
+
+var listenPrefix = myHost == "localhost" ? $"ws://localhost:{port}" : $"ws://*:{port}";
 try
 {
-    node.Start(myUrl);
+    node.Start(myUrl, listenPrefix);
     Print("P2P Server started listening.", ConsoleColor.DarkGreen);
 }
 catch (Exception ex)
@@ -48,11 +56,12 @@ var http = new HttpClient();
 try
 {
     await http.PostAsync(
-        "http://localhost:7000/register",
+        $"{bootstrapApiUrl}/register",
         new StringContent(myUrl));
     Print("Registered on bootstrap server.", ConsoleColor.DarkGreen);
 
-    var json = await http.GetStringAsync("http://localhost:7000/peers");
+    // Получаем пиров
+    var json = await http.GetStringAsync($"{bootstrapApiUrl}/peers");
     var peers = JsonSerializer.Deserialize<List<string>>(json) ?? new();
     Print($"Found {peers.Count} peers on network. Syncing...", ConsoleColor.Yellow);
 
@@ -120,7 +129,7 @@ Wallet CreateNewWalletInteractive()
     {
         Print("Enter nickname for new wallet: ", ConsoleColor.White, false);
         var nick = Console.ReadLine()?.Trim();
-        if (string.IsNullOrEmpty(nick) || nick.ToLower() == "coinbase")
+        if (string.IsNullOrEmpty(nick) || nick.ToLower() == "coinbase" || nick.Contains(' '))
         {
             Print("Invalid nickname. Try another one.", ConsoleColor.Red);
             continue;
@@ -264,6 +273,8 @@ while (true)
         Print("Mining block...", ConsoleColor.Cyan, false);
         var miner = new Miner();
         
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
         var miningTask = Task.Run(() => miner.Mine(nextBlock));
         
         char[] spinner = new char[] { '|', '/', '-', '\\' };
@@ -283,7 +294,7 @@ while (true)
         chain.Add(minedBlock);
         await node.BroadcastBlock(minedBlock);
 
-        Print($"\nBlock #{minedBlock.Index} successfully mined!", ConsoleColor.Green);
+        Print($"\nBlock #{minedBlock.Index} successfully mined in {stopwatch.Elapsed.TotalSeconds:F2}s!", ConsoleColor.Green);
         Print($"Hash:  {minedBlock.Hash}", ConsoleColor.Yellow);
         Print($"Nonce: {minedBlock.Nonce}", ConsoleColor.White);
         Print($"Transactions: {minedBlock.Transactions.Count}", ConsoleColor.White);

@@ -7,7 +7,7 @@ public class Miner
 {
     public Block Mine(Block block)
     {
-        string target = "000000";
+        string target = "00000000";
 
         while (true)
         {
