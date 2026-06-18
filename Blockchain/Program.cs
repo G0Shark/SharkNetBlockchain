@@ -17,11 +17,13 @@ void Print(string text, ConsoleColor color = ConsoleColor.Gray, bool writeLine =
 
 Console.Clear();
 Print(@"
-   _____ __               __   _   __     __     ________    ____
-  / ___// /_  ____ ______/ /__/ | / /__  / /_   / ____/ /   /  _/
-  \__ \/ __ \/ __ `/ ___/ //_/  |/ / _ \/ __/  / /   / /    / /  
- ___/ / / / / /_/ / /  / ,< / /|  /  __/ /_   / /___/ /____/ /   
-/____/_/ /_/\__,_/_/  /_/|_/_/ |_/\___/\__/   \____/_____/___/   
+   _____ _                _    _   _      _      _____ _      _____ 
+  / ____| |              | |  | \ | |    | |    / ____| |    |_   _|
+ | (___ | |__   __ _ _ __| | _|  \| | ___| |_  | |    | |      | |  
+  \___ \| '_ \ / _` | '__| |/ / . ` |/ _ \ __| | |    | |      | |  
+  ____) | | | | (_| | |  |   <| |\  |  __/ |_  | |____| |____ _| |_ 
+ |_____/|_| |_|\__,_|_|  |_|\_\_| \_|\___|\__|  \_____|______|_____|
+
 ", ConsoleColor.Magenta);
 Print("==================================================", ConsoleColor.DarkMagenta);
 var port = args.Length > 0 ? args[0] : "5001";
@@ -86,18 +88,7 @@ catch (Exception ex)
     Print($"Bootstrap server not available ({ex.Message}). Running in standalone mode.", ConsoleColor.Yellow);
 }
 
-State ComputeState()
-{
-    var state = new State();
-    foreach (var block in chain.Chain)
-    {
-        foreach (var tx in block.Transactions)
-        {
-            StateService.Apply(state, tx);
-        }
-    }
-    return state;
-}
+State ComputeState() => chain.CurrentState;
 
 Wallet myWallet;
 var walletPath = $"wallet_{port}.json";
@@ -245,12 +236,15 @@ while (true)
             continue;
         }
 
+        long nonce = state.Nonces.TryGetValue(myWallet.Nickname, out var n) ? n + 1 : 1;
+
         var tx = TransactionService.Create(
             myWallet.Nickname, 
             myWallet.PublicKey, 
             recipient, 
             amount,
             message, 
+            nonce,
             myWallet.PrivateKey);
          
         mempool.Add(tx);

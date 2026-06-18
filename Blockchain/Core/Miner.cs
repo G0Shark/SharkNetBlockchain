@@ -1,4 +1,4 @@
-﻿using Blockchain.Crypto;
+using Blockchain.Crypto;
 using Blockchain.Models;
 
 namespace Blockchain.Core;
@@ -7,16 +7,39 @@ public class Miner
 {
     public Block Mine(Block block)
     {
-        string target = "00000000";
+        var target = new string('0', block.Difficulty);
 
-        while (true)
+        int workers = Environment.ProcessorCount;
+
+        Block? result = null;
+
+        using var cts = new CancellationTokenSource();
+
+        Parallel.For((long)0, workers, workerId =>
         {
-            block.Hash = BlockHasher.Calculate(block);
+            var localBlock = block.Clone();
 
-            if (block.Hash.StartsWith(target))
-                return block;
+            long nonce = workerId;
 
-            block.Nonce++;
-        }
+            while (!cts.Token.IsCancellationRequested)
+            {
+                localBlock.Nonce = nonce;
+
+                string hash = BlockHasher.Calculate(localBlock);
+
+                if (hash.StartsWith(target))
+                {
+                    localBlock.Hash = hash;
+                    result = localBlock;
+
+                    cts.Cancel();
+                    break;
+                }
+
+                nonce += workers;
+            }
+        });
+
+        return result!;
     }
 }

@@ -7,6 +7,29 @@ using Blockchain.Models;
 using Blockchain.Network;
 using Blockchain.Services;
 
+void Print(string text, ConsoleColor color = ConsoleColor.Gray, bool writeLine = true)
+{
+    var originalColor = Console.ForegroundColor;
+    Console.ForegroundColor = color;
+    if (writeLine) Console.WriteLine(text);
+    else Console.Write(text);
+    Console.ForegroundColor = originalColor;
+}
+
+Console.Clear();
+Print(@"
+   _____ _                _    _   _      _     ____              _       _                             
+  / ____| |              | |  | \ | |    | |   |  _ \            | |     | |                            
+ | (___ | |__   __ _ _ __| | _|  \| | ___| |_  | |_) | ___   ___ | |_ ___| |_ _ __ __ _ _ __   ___ _ __ 
+  \___ \| '_ \ / _` | '__| |/ / . ` |/ _ \ __| |  _ < / _ \ / _ \| __/ __| __| '__/ _` | '_ \ / _ \ '__|
+  ____) | | | | (_| | |  |   <| |\  |  __/ |_  | |_) | (_) | (_) | |_\__ \ |_| | | (_| | |_) |  __/ |   
+ |_____/|_| |_|\__,_|_|  |_|\_\_| \_|\___|\__| |____/ \___/ \___/ \__|___/\__|_|  \__,_| .__/ \___|_|   
+                                                                                       | |              
+                                                                                       |_|              
+
+", ConsoleColor.Magenta);
+Print("==================================================", ConsoleColor.DarkMagenta);
+
 // По умолчанию хостом на сервере будет твой домен
 var host = args.Length > 0 ? args[0] : "sharknet.g0shark.ru";
 var bootstrapUrl = host == "localhost" ? "http://localhost:7000/" : "http://*:7000/";

@@ -1,4 +1,4 @@
-﻿namespace Blockchain.Models;
+namespace Blockchain.Models;
 
 public class Transaction
 {
@@ -9,6 +9,7 @@ public class Transaction
     public string Message { get; set; } = "";
 
     public long Timestamp { get; set; }
+    public long Nonce { get; set; }
 
     public string Signature { get; set; } = "";
 

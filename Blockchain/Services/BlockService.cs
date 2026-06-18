@@ -1,4 +1,4 @@
-﻿using Blockchain.Models;
+using Blockchain.Models;
 
 namespace Blockchain.Services;
 
@@ -13,7 +13,8 @@ public static class BlockService
             Index = chain.Last().Index + 1,
             PreviousHash = chain.Last().Hash,
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-            Transactions = txs
+            Transactions = txs,
+            Difficulty = chain.GetNextDifficulty()
         };
     }
 }

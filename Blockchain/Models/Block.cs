@@ -1,4 +1,4 @@
-﻿namespace Blockchain.Models;
+namespace Blockchain.Models;
 
 public class Block
 {
@@ -12,5 +12,23 @@ public class Block
 
     public long Nonce { get; set; }
 
+    public int Difficulty { get; set; } = 8;
+
     public string Hash { get; set; } = "";
+    
+    public Block Clone()
+    {
+        return new Block
+        {
+            Index = Index,
+            PreviousHash = PreviousHash,
+            Timestamp = Timestamp,
+            Nonce = Nonce,
+            Difficulty = Difficulty,
+            Hash = Hash,
+
+            // если транзакции во время майнинга не меняются
+            Transactions = new List<Transaction>(Transactions)
+        };
+    }
 }

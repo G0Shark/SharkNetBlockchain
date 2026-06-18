@@ -114,15 +114,14 @@ public class Node
                         break;
                     }
 
-                    var state = new State();
-                    foreach (var b in Blockchain.Chain)
+                    var txExists = Blockchain.Chain.Any(b => b.Transactions.Any(t => t.Id == tx.Id));
+                    if (txExists)
                     {
-                        foreach (var existingTx in b.Transactions)
-                        {
-                            StateService.Apply(state, existingTx);
-                        }
+                        Console.WriteLine($"[Network] Transaction {tx.Id} already exists in the blockchain. Rejected.");
+                        break;
                     }
 
+                    var state = Blockchain.CurrentState;
                     if (state.NicknameKeys.TryGetValue(tx.From, out var registeredKey) && registeredKey != tx.PublicKey)
                     {
                         Console.WriteLine($"[Network] Nickname {tx.From} belongs to another public key. Rejected.");
@@ -130,9 +129,10 @@ public class Node
                     }
 
                     var balance = state.Balances.TryGetValue(tx.From, out var bal) ? bal : 0;
-                    if (balance < tx.Amount)
+                    decimal fee = tx.Amount * 0.1m;
+                    if (balance < tx.Amount + fee)
                     {
-                        Console.WriteLine($"[Network] Sender {tx.From} has insufficient balance. Rejected.");
+                        Console.WriteLine($"[Network] Sender {tx.From} has insufficient balance for amount and fee. Rejected.");
                         break;
                     }
 
@@ -152,7 +152,7 @@ public class Node
                 }
                 else
                 {
-                    Console.WriteLine($"Block #{block.Index} is rejected for invalid");
+                    Console.WriteLine($"Block #{block?.Index} is rejected for invalid");
                     await Send(socket, new Message
                     {
                         Type = MessageType.GetChain,
@@ -180,6 +180,7 @@ public class Node
                     {
                         Blockchain.Chain.Clear();
                         Blockchain.Chain.AddRange(incomingChain);
+                        Blockchain.RebuildState();
                         Blockchain.Save();
                         
                         foreach (var b in incomingChain)
@@ -206,6 +207,41 @@ public class Node
                         Socket = socket
                     });
                     Console.WriteLine($"Registered incoming peer: {senderUrl}");
+
+                    var peersList = GetConnectedPeers();
+                    if (Url != null && !peersList.Contains(Url))
+                        peersList.Add(Url);
+
+                    await Send(socket, new Message
+                    {
+                        Type = MessageType.Peers,
+                        Data = JsonSerializer.Serialize(peersList)
+                    });
+                }
+                break;
+
+            case MessageType.Peers:
+                var incomingPeers = JsonSerializer.Deserialize<List<string>>(msg.Data);
+                if (incomingPeers != null)
+                {
+                    foreach (var peerUrl in incomingPeers)
+                    {
+                        if (peerUrl != Url && !_peers.Any(p => p.Url == peerUrl))
+                        {
+                            Console.WriteLine($"[PEX] Discovered new peer from gossip: {peerUrl}");
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    await Connect(peerUrl);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[PEX] Failed to connect to discovered peer {peerUrl}: {ex.Message}");
+                                }
+                            });
+                        }
+                    }
                 }
                 break;
         }
@@ -293,20 +329,18 @@ public class Node
         if (hash != block.Hash)
             return false;
 
-        if (!block.Hash.StartsWith("00000000"))
+        var expectedDifficulty = Blockchain.GetNextDifficulty();
+        if (block.Difficulty != expectedDifficulty)
+            return false;
+
+        var target = new string('0', block.Difficulty);
+        if (!block.Hash.StartsWith(target))
             return false;
 
         if (block.PreviousHash != Blockchain.Last().Hash)
             return false;
 
-        var state = new State();
-        foreach (var b in Blockchain.Chain)
-        {
-            foreach (var existingTx in b.Transactions)
-            {
-                StateService.Apply(state, existingTx);
-            }
-        }
+        var state = Blockchain.CurrentState.Clone();
 
         var hasCoinbase = false;
         foreach (var tx in block.Transactions)
@@ -358,7 +392,12 @@ public class Node
             if (BlockHasher.Calculate(current) != current.Hash)
                 return false;
 
-            if (!current.Hash.StartsWith("00000000"))
+            var expectedDifficulty = Core.Blockchain.GetDifficultyForIndex(newChain, i);
+            if (current.Difficulty != expectedDifficulty)
+                return false;
+
+            var target = new string('0', current.Difficulty);
+            if (!current.Hash.StartsWith(target))
                 return false;
 
             var hasCoinbase = false;
@@ -371,7 +410,13 @@ public class Node
                 {
                     if (hasCoinbase) return false;
                     hasCoinbase = true;
-                    if (tx.Amount != 10) return false;
+    
+                    decimal totalFees = current.Transactions
+                        .Where(t => t.From != "coinbase")
+                        .Sum(t => t.Amount * 0.1m);
+
+                    if (tx.Amount != 10 + totalFees)
+                        return false;
                 }
 
                 if (!StateService.Apply(tempState, tx))

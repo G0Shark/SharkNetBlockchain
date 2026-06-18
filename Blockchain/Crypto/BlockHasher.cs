@@ -15,6 +15,7 @@ public static class BlockHasher
             $"{block.PreviousHash}" +
             $"{block.Timestamp}" +
             $"{block.Nonce}" +
+            $"{block.Difficulty}" +
             $"{txData}";
 
         return HashService.Sha256(raw);

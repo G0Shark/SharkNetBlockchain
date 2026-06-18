@@ -29,6 +29,12 @@ public static class StateService
             {
                 state.NicknameKeys[tx.From] = tx.PublicKey;
             }
+
+            long currentNonce = state.Nonces.TryGetValue(tx.From, out var n) ? n : 0;
+            if (tx.Nonce != currentNonce + 1)
+                return false;
+
+            state.Nonces[tx.From] = tx.Nonce;
         }
 
         if (tx.From == "coinbase")
