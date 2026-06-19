@@ -153,7 +153,7 @@ var shortKey = myWallet.PublicKey.Length > 30
 Print($"║ Pub Key:   {shortKey.PadRight(38)}║", ConsoleColor.DarkGray);
 Print("╚══════════════════════════════════════════════════╝\n", ConsoleColor.Cyan);
 
-Print("Available commands: wallet, balances, peers, chain, tx <to> <amount> [message], mine, exit\n", ConsoleColor.DarkCyan);
+Print("Available commands: wallet, balances, peers, chain, tx <to> <amount> [message], mine, minegpu, exit\n", ConsoleColor.DarkCyan);
 
 while (true)
 {
@@ -293,8 +293,50 @@ while (true)
         Print($"Nonce: {minedBlock.Nonce}", ConsoleColor.White);
         Print($"Transactions: {minedBlock.Transactions.Count}", ConsoleColor.White);
     }
+    else if (command == "minegpu")
+    {
+        var txs = mempool.Take(10);
+
+        decimal totalFees = txs.Sum(t => t.Amount * 0.1m);
+        decimal minerReward = 10 + totalFees;
+
+        var coinbaseTx = TransactionService.CreateCoinbase(myWallet.Nickname, minerReward, myWallet.PublicKey);
+        txs.Insert(0, coinbaseTx);
+
+        var nextBlock = BlockService.CreateNextBlock(chain, txs);
+     
+        Print("Mining block on GPU...", ConsoleColor.Cyan, false);
+        using var cts = new CancellationTokenSource();
+        var miner = new GPUMiner();
+        
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
+        var miningTask = Task.Run(() => miner.Mine(nextBlock, cts.Token));
+        
+        char[] spinner = new char[] { '|', '/', '-', '\\' };
+        int counter = 0;
+        
+        while (!miningTask.IsCompleted)
+        {
+            Console.Write($"\rMining block on GPU... [ {spinner[counter % 4]} ]");
+            counter++;
+            await Task.Delay(150);
+        }
+        
+        var minedBlock = await miningTask;
+        
+        Console.Write("\r                                                   \r");
+
+        chain.Add(minedBlock);
+        await node.BroadcastBlock(minedBlock);
+
+        Print($"\nBlock #{minedBlock.Index} successfully mined on GPU in {stopwatch.Elapsed.TotalSeconds:F2}s!", ConsoleColor.Green);
+        Print($"Hash:  {minedBlock.Hash}", ConsoleColor.Yellow);
+        Print($"Nonce: {minedBlock.Nonce}", ConsoleColor.White);
+        Print($"Transactions: {minedBlock.Transactions.Count}", ConsoleColor.White);
+    }
     else
     {
-        Print("Unknown command. Supported: wallet, balances, peers, chain, tx, mine, exit", ConsoleColor.Red);
+        Print("Unknown command. Supported: wallet, balances, peers, chain, tx, mine, minegpu, exit", ConsoleColor.Red);
     }
 }

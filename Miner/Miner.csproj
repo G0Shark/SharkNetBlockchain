@@ -15,4 +15,8 @@
       <ProjectReference Include="..\Blockchain\Blockchain.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="ILGPU" Version="1.5.3" />
+    </ItemGroup>
+
 </Project>

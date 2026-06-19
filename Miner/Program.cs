@@ -165,12 +165,25 @@ while (true)
     var nextBlock = BlockService.CreateNextBlock(chain, txs);
     Print($"[{DateTime.Now:HH:mm:ss}] Mining block #{nextBlock.Index} (difficulty: {nextBlock.Difficulty}, txs: {txs.Count})...", ConsoleColor.Yellow);
 
-    var miner = new Blockchain.Core.Miner();
+    using var cts = new CancellationTokenSource();
+    var miner = new GPUMiner();
     var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-    var minedBlock = await Task.Run(() => miner.Mine(nextBlock));
+    var currentLastHash = chain.Last().Hash;
+    var monitorTask = Task.Run(async () =>
+    {
+        while (chain.Last().Hash == currentLastHash && !cts.Token.IsCancellationRequested)
+        {
+            await Task.Delay(100);
+        }
+        cts.Cancel();
+    });
 
-    if (minedBlock.PreviousHash == chain.Last().Hash)
+    var minedBlock = await Task.Run(() => miner.Mine(nextBlock, cts.Token));
+    cts.Cancel();
+    await monitorTask;
+
+    if (minedBlock.PreviousHash == chain.Last().Hash && minedBlock.Hash != "")
     {
         chain.Add(minedBlock);
         await node.BroadcastBlock(minedBlock);
@@ -179,7 +192,7 @@ while (true)
     }
     else
     {
-        Print($"[{DateTime.Now:HH:mm:ss}] Block #{minedBlock.Index} obsolete. Discarding.", ConsoleColor.DarkYellow);
+        Print($"[{DateTime.Now:HH:mm:ss}] Block #{minedBlock.Index} obsolete or cancelled. Discarding.", ConsoleColor.DarkYellow);
         txs.RemoveAt(0);
         foreach (var tx in txs)
         {
